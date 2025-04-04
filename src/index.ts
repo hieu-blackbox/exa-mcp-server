@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import dotenv from "dotenv";
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -8,6 +7,9 @@ import { hideBin } from 'yargs/helpers';
 // Import the tool registry system
 import { toolRegistry } from "./tools/index.js";
 import { log } from "./utils/logger.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import express from "express";
+const app = express();
 
 dotenv.config();
 
@@ -66,73 +68,48 @@ if (!API_KEY) {
  * - And more to come!
  */
 
-class ExaServer {
-  private server: McpServer;
+server = new McpServer({
+  name: "exa-search-server",
+  version: "0.3.4"
+});
 
-  constructor() {
-    this.server = new McpServer({
-      name: "exa-search-server",
-      version: "0.3.4"
-    });
+
+const registeredTools: string[] = [];
     
-    log("Server initialized");
+Object.entries(toolRegistry).forEach(([toolId, tool]) => {
+  // If specific tools were provided, only enable those.
+  // Otherwise, enable all tools marked as enabled by default
+  const shouldRegister = specifiedTools.size > 0 
+    ? specifiedTools.has(toolId) 
+    : tool.enabled;
+  
+  if (shouldRegister) {
+    server.tool(
+      tool.name,
+      tool.description,
+      tool.schema,
+      tool.handler
+    );
+    registeredTools.push(toolId);
   }
+});
 
-  private setupTools(): string[] {
-    // Register tools based on specifications
-    const registeredTools: string[] = [];
-    
-    Object.entries(toolRegistry).forEach(([toolId, tool]) => {
-      // If specific tools were provided, only enable those.
-      // Otherwise, enable all tools marked as enabled by default
-      const shouldRegister = specifiedTools.size > 0 
-        ? specifiedTools.has(toolId) 
-        : tool.enabled;
-      
-      if (shouldRegister) {
-        this.server.tool(
-          tool.name,
-          tool.description,
-          tool.schema,
-          tool.handler
-        );
-        registeredTools.push(toolId);
-      }
-    });
-    
-    return registeredTools;
-  }
+let transport: SSEServerTransport;
 
-  async run(): Promise<void> {
-    try {
-      // Set up tools before connecting
-      const registeredTools = this.setupTools();
-      
-      log(`Starting Exa MCP server with ${registeredTools.length} tools: ${registeredTools.join(', ')}`);
-      
-      const transport = new StdioServerTransport();
-      
-      // Handle connection errors
-      transport.onerror = (error) => {
-        log(`Transport error: ${error.message}`);
-      };
-      
-      await this.server.connect(transport);
-      log("Exa Search MCP server running on stdio");
-    } catch (error) {
-      log(`Server initialization error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+app.get("/sse", (req, res) => {
+    console.log("Received connection");
+    transport = new SSEServerTransport("/messages", res);
+    server.connect(transport);
+});
+
+app.post("/messages", (req, res) => {
+    console.log("Received message handle message");
+    if (transport) {
+        transport.handlePostMessage(req, res);
     }
-  }
-}
+});
 
-// Create and run the server with proper error handling
-(async () => {
-  try {
-    const server = new ExaServer();
-    await server.run();
-  } catch (error) {
-    log(`Fatal server error: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-})();
+const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
