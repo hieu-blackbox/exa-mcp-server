@@ -68,7 +68,7 @@ if (!API_KEY) {
  * - And more to come!
  */
 
-server = new McpServer({
+const server = new McpServer({
   name: "exa-search-server",
   version: "0.3.4"
 });
