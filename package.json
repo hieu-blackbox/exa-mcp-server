@@ -34,6 +34,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "express": "^5.1.0",
     "@modelcontextprotocol/sdk": "^1.7.0",
     "axios": "^1.7.8",
     "dotenv": "^16.4.5",
@@ -41,6 +42,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/express": "^5.0.1",
     "@types/node": "^20.11.24",
     "@types/yargs": "^17.0.33",
     "typescript": "^5.3.3"
